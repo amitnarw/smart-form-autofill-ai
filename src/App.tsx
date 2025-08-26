@@ -25,6 +25,12 @@ function App() {
     {}
   );
   const [errorFromBackground, setErrorFromBackground] = useState(false);
+  const [logMessage, setLogMessage] = useState<
+    {
+      level: "info" | "success" | "error";
+      log: string;
+    }[]
+  >([]);
 
   const credentials = [
     {
@@ -47,14 +53,39 @@ function App() {
         try {
           const url = new URL(tabs[0].url);
           setCurrentSite(url.hostname);
-        } catch (e) {
-          console.error("Failed to parse URL", e);
+        } catch (err) {
+          console.error("Failed to parse URL", err);
         }
       }
     });
 
     checkLogs();
+
+    const handleMessage = (message: any) => {
+      if (message.type === "LOG_MESSAGE") {
+        setLogMessage((preVal) => [...preVal, message.payload]);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
   }, []);
+
+  const getColor = (level: string) => {
+    switch (level) {
+      case "info":
+        return "#00BFFF";
+      case "success":
+        return "#05df72";
+      case "error":
+        return "#FF6347";
+      default:
+        return "#ccc";
+    }
+  };
 
   const checkLogs = async () => {
     let check = await getLoggingEnabled();
@@ -71,7 +102,7 @@ function App() {
     await setLoggingEnabled(newState);
 
     chrome.runtime.sendMessage(
-      { action: "toggleLogs", enabled: newState },
+      { type: "DEBUG_TOGGLE", enabled: newState },
       (res) => {
         if (res?.status === "success") {
           setEnableLogs(res.toggleLogs);
@@ -88,7 +119,7 @@ function App() {
     password: string;
   }) => {
     setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
-    chrome.runtime.sendMessage({ action: "autofill", data: cred }, (res) => {
+    chrome.runtime.sendMessage({ type: "FILL_FIELDS", data: cred }, (res) => {
       if (res?.status === "success") {
         setAutofillStatus((prev) => ({
           ...prev,
@@ -164,7 +195,9 @@ function App() {
     <div className="w-96 h-[480px] bg-gray-900 text-gray-100 shadow-xl flex flex-col relative">
       {/* Navbar */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-700 bg-gray-850">
-        <p className="bg-gradient-to-r from-blue-700 to-blue-200 text-transparent bg-clip-text font-bold">Extension</p>
+        <p className="bg-gradient-to-r from-blue-700 to-blue-200 text-transparent bg-clip-text font-bold text-lg">
+          Extension
+        </p>
         <div className="flex flex-row gap-2 items-center justify-end w-full">
           <button
             onClick={handleReloadPage}
@@ -182,7 +215,7 @@ function App() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-hiden p-4">
         {/* Site Tab */}
         {activeTab === "site" && (
           <div>
@@ -298,9 +331,19 @@ function App() {
               <span className="ml-3 text-sm">{enableLogs ? "ON" : "OFF"}</span>
             </label>
             {enableLogs && (
-              <div className="flex items-center gap-1 mt-3 text-green-400 text-xs">
+              <div className="flex items-center gap-1 mt-1 text-green-400 text-xs">
                 <CheckCircleIcon className="w-4 h-4" />
                 <span>Logs enabled in console</span>
+              </div>
+            )}
+
+            {enableLogs && logMessage && (
+              <div className="bg-black text-white font-mono px-4 py-2 h-[240px] overflow-y-auto rounded shadow-md mt-5">
+                {logMessage.map((log, i) => (
+                  <div key={i} style={{ color: getColor(log.level) }}>
+                    [{log.level.toUpperCase()}]: {log.log}
+                  </div>
+                ))}
               </div>
             )}
           </div>

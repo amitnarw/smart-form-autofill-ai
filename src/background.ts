@@ -1,11 +1,11 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.action === "toggleLogs") {
+  if (message.type === "DEBUG_TOGGLE") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
         chrome.tabs.sendMessage(
           tabs[0].id,
           {
-            action: "updateLogs",
+            type: "DEBUG_TOGGLE",
             enabled: message.enabled,
           },
           (response) => {
@@ -30,13 +30,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
     });
     return true;
-  } else if (message.action === "autofill") {
+  } else if (message.type === "FILL_FIELDS") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
         chrome.tabs.sendMessage(
           tabs[0].id,
           {
-            action: "autofillapply",
+            type: "FILL_FIELDS",
             data: message.data,
           },
           (response) => {
@@ -59,6 +59,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           }
         );
       }
+    });
+    return true;
+  } else if (message.type === "LOG_MESSAGE") {
+    chrome.runtime.sendMessage({
+      type: "LOG_MESSAGE",
+      payload: message.payload,
     });
     return true;
   }

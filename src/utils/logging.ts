@@ -11,7 +11,9 @@ export const getLoggingEnabled = (): Promise<boolean> => {
 };
 
 export const setAlreadyAutofilledWebsites = (origin: string, cred: {}) => {
-  chrome.storage.local.set({ [`autofill:state:${origin}`]: cred });
+  chrome.storage.local.set({
+    [`autofill:state:${origin}`]: btoa(JSON.stringify(cred)),
+  });
 };
 
 export const getAlreadyAutofilledWebsites = (
@@ -19,13 +21,7 @@ export const getAlreadyAutofilledWebsites = (
 ): Promise<boolean> => {
   return new Promise((resolve) => {
     chrome.storage.local.get([`autofill:state:${origin}`], (result) => {
-      console.log(
-        result[`autofill:state:${origin}`],
-        `autofill:state:${origin}`,
-        new Date().getMilliseconds(),
-        "1111111111"
-      );
-      resolve(result[`autofill:state:${origin}`] === "success" ? true : false);
+      resolve(atob(JSON.parse(result[`autofill:state:${origin}`])) === "success" ? true : false);
     });
   });
 };

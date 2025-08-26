@@ -6,6 +6,20 @@ const discoveredFields: Array<{
   input: HTMLInputElement;
 }> = [];
 
+const sendStatusToBackground = ({
+  level,
+  log,
+}: {
+  level: string;
+  log: string;
+}) => {
+  chrome.runtime.sendMessage({
+    type: "LOG_MESSAGE",
+    payload: { level, log },
+  });
+  return true;
+};
+
 let loggingEnabled = false;
 let cred: {
   [key: string]: any;
@@ -13,16 +27,58 @@ let cred: {
 const hostname = window.location.hostname;
 
 const checkLogging = async () => {
-  let check = await chrome.storage.local.get("loggingEnabled");
-  loggingEnabled = check?.loggingEnabled;
+  try {
+    let check = await chrome.storage.local.get("loggingEnabled");
+    loggingEnabled = check?.loggingEnabled;
+  } catch (err) {
+    if (err instanceof Error) {
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while checking logginEnabled chrome.storage: " + err?.message,
+      });
+    } else {
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while checking logginEnabled chrome.storage: " +
+          JSON.stringify(err),
+      });
+    }
+  }
 };
 checkLogging();
 
 const autoFillAlreadyApplied = async () => {
-  let check = await chrome.storage.local.get(`autofill:state:${hostname}`);
-
-  if (check) {
-    cred = check;
+  try {
+    let check = await chrome.storage.local.get(`autofill:state:${hostname}`);
+    if (check && Object.keys(check).length > 0) {
+      sendStatusToBackground({
+        level: "info",
+        log: "Credentials found for this website",
+      });
+      if (loggingEnabled) {
+        console.log("Credentials found for this website");
+      }
+      check = JSON.parse(atob(check[`autofill:state:${hostname}`]));
+      cred = check;
+    }
+  } catch (err) {
+    if (err instanceof Error) {
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while auto filling already applied credentials: " +
+          err?.message,
+      });
+    } else {
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while auto filling already applied credentials: " +
+          JSON.stringify(err),
+      });
+    }
   }
 };
 autoFillAlreadyApplied();
@@ -62,87 +118,125 @@ function getLabelTextForInput(input: HTMLInputElement): string {
 }
 
 function discoverInputs() {
-  const allInputs = [
-    ...document.querySelectorAll("input"),
-  ] as Array<HTMLInputElement>;
+  try {
+    sendStatusToBackground({
+      level: "info",
+      log: "Discovery of fields started",
+    });
+    const allInputs = [
+      ...document.querySelectorAll("input"),
+    ] as Array<HTMLInputElement>;
 
-  const allLabels = [
-    ...document.querySelectorAll("label"),
-  ] as HTMLLabelElement[];
-  const labelMap = new Map<string, string>();
-  for (const label of allLabels) {
-    const forId = label.getAttribute("for");
-    if (forId) {
-      labelMap.set(forId, label.innerText.trim());
-    }
-  }
-
-  discoveredFields.length = 0;
-
-  for (const input of allInputs) {
-    const labelText = input.id ? labelMap.get(input.id) : null;
-    const ariaLabel = input.getAttribute("aria-label");
-    const ariaLabelledById = input.getAttribute("aria-labelledby");
-    let ariaLabelledBy = null;
-    if (ariaLabelledById) {
-      const labelledElem = document.getElementById(ariaLabelledById);
-      if (labelledElem) ariaLabelledBy = labelledElem.innerText.trim();
+    const allLabels = [
+      ...document.querySelectorAll("label"),
+    ] as HTMLLabelElement[];
+    const labelMap = new Map<string, string>();
+    for (const label of allLabels) {
+      const forId = label.getAttribute("for");
+      if (forId) {
+        labelMap.set(forId, label.innerText.trim());
+      }
     }
 
-    const name =
-      input.name ||
-      input.id ||
-      labelText ||
-      ariaLabel ||
-      ariaLabelledBy ||
-      input.getAttribute("placeholder") ||
-      "unknown";
+    discoveredFields.length = 0;
 
-    const role = classifyInput(input);
-
-    discoveredFields.push({
-      name,
-      value: input.value,
-      role,
-      input,
-    });
-  }
-
-  if (loggingEnabled) {
-    console.log("Discovered fields with roles:", discoveredFields);
-  }
-
-  const choosenFields = discoveredFields.filter(
-    (item) => item?.role !== "unknown"
-  );
-
-  if (loggingEnabled) {
-    console.log("Choosen Fields: ", choosenFields);
-  }
-
-  if (cred[`autofill:state:${hostname}`]) {
-    discoveredFields.forEach(({ role, input }) => {
-      let valueToFill = "";
-      if (role === "username") {
-        valueToFill = cred[`autofill:state:${hostname}`].username || "";
-      } else if (role === "email") {
-        valueToFill = cred[`autofill:state:${hostname}`].email || "";
-      } else if (role === "password") {
-        valueToFill = cred[`autofill:state:${hostname}`].password || "";
+    for (const input of allInputs) {
+      const labelText = input.id ? labelMap.get(input.id) : null;
+      const ariaLabel = input.getAttribute("aria-label");
+      const ariaLabelledById = input.getAttribute("aria-labelledby");
+      let ariaLabelledBy = null;
+      if (ariaLabelledById) {
+        const labelledElem = document.getElementById(ariaLabelledById);
+        if (labelledElem) ariaLabelledBy = labelledElem.innerText.trim();
       }
 
-      if (valueToFill) {
-        input.value = valueToFill;
+      const name =
+        input.name ||
+        input.id ||
+        labelText ||
+        ariaLabel ||
+        ariaLabelledBy ||
+        input.getAttribute("placeholder") ||
+        "unknown";
 
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        input.style.outline = "3px solid orange";
-      }
+      const role = classifyInput(input);
+
+      discoveredFields.push({
+        name,
+        value: input.value,
+        role,
+        input,
+      });
+    }
+
+    sendStatusToBackground({
+      level: "info",
+      log: `Total discovered fields: ${
+        discoveredFields ? discoveredFields?.length : 0
+      }`,
     });
-  }
+    if (loggingEnabled) {
+      console.log("Discovered fields with roles:", discoveredFields);
+    }
 
-  if (loggingEnabled) {
-    console.log("Auto-Filled Fields Successfully");
+    const choosenFields = discoveredFields.filter(
+      (item) => item?.role !== "unknown"
+    );
+
+    sendStatusToBackground({
+      level: "info",
+      log: `Total fields as per the roles : ${
+        choosenFields ? choosenFields?.length : 0
+      }`,
+    });
+
+    if (loggingEnabled) {
+      console.log("Choosen Fields: ", choosenFields);
+    }
+
+    if (cred && Object.keys(cred).length > 0) {
+      discoveredFields.forEach(({ role, input }) => {
+        let valueToFill = "";
+        if (role === "username") {
+          valueToFill = cred.username || "";
+        } else if (role === "email") {
+          valueToFill = cred.email || "";
+        } else if (role === "password") {
+          valueToFill = cred.password || "";
+        }
+
+        if (valueToFill) {
+          input.value = valueToFill;
+
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          input.style.outline = "3px solid orange";
+        }
+      });
+
+      sendStatusToBackground({
+        level: "success",
+        log: "Auto-Filled Fields Successfully",
+      });
+
+      if (loggingEnabled) {
+        console.log("Auto-Filled Fields Successfully");
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error) {
+      sendStatusToBackground({
+        level: "error",
+        log: "Error while running discoverInputs() function: " + err?.message,
+      });
+    } else {
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while running discoverInputs() function: " +
+          JSON.stringify(err),
+      });
+    }
   }
 }
 
@@ -180,22 +274,36 @@ observer.observe(document.body, {
 discoverInputs();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.action === "updateLogs") {
+  if (message.type === "DEBUG_TOGGLE") {
     try {
       loggingEnabled = message.enabled;
       console.log(`Logging enabled: ${loggingEnabled}`);
+      sendStatusToBackground({
+        level: "success",
+        log: "Debug mode is enabled",
+      });
       sendResponse({ status: "success", toggleLogs: loggingEnabled });
     } catch (err) {
       console.error("Error in content script:", err);
       if (err instanceof Error) {
+        sendStatusToBackground({
+          level: "error",
+          log: "Error while enabling/disabling debug toggle: " + err?.message,
+        });
         sendResponse({ status: "error", message: err.message });
       } else {
+        sendStatusToBackground({
+          level: "error",
+          log:
+            "Error while enabling/disabling debug toggle: " +
+            JSON.stringify(err),
+        });
         sendResponse({ status: "error", message: "Unknown error" });
       }
     }
 
     return true;
-  } else if (message.action === "autofillapply") {
+  } else if (message.type === "FILL_FIELDS") {
     try {
       discoveredFields.forEach(({ role, input }) => {
         let valueToFill = "";
@@ -219,6 +327,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (loggingEnabled) {
         console.log("Fields Filled Successfully");
       }
+      sendStatusToBackground({
+        level: "success",
+        log: "Fields Filled Successfully",
+      });
       sendResponse({
         status: "success",
         message: "Fields Filled Successfully",
@@ -226,8 +338,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } catch (err) {
       console.error("Error while auto filling:", err);
       if (err instanceof Error) {
+        sendStatusToBackground({
+          level: "error",
+          log: "Error while filling fields value: " + err?.message,
+        });
         sendResponse({ status: "error", message: err.message });
       } else {
+        sendStatusToBackground({
+          level: "error",
+          log: "Error while filling fields value: " + JSON.stringify(err),
+        });
         sendResponse({ status: "error", message: "Unknown error" });
       }
     }
