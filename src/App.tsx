@@ -10,6 +10,7 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/solid";
 import {
+  getAlreadyAutofilledWebsites,
   getLoggingEnabled,
   setAlreadyAutofilledWebsites,
   setLoggingEnabled,
@@ -31,16 +32,13 @@ function App() {
       log: string;
     }[]
   >([]);
+  const [alreadyFilled, setAlreadyFilled] = useState(false);
 
   const credentials = [
-    {
-      site: "github.com",
-      email: "johndoe@test.com",
-      username: "johndoe",
-      password: "demo123",
-    },
-    { site: "mail.google.com", username: "janedoe", password: "demo456" },
     { site: "www.fedex.com", username: "janedoe", password: "demo222" },
+    { site: "online.canarabank.in", username: "janedoe-canara", password: "demo444" },
+    { site: "citi.com", username: "janedoe-citi", password: "demo99609" },
+    { site: "netbanking.pgb.co.in", username: "janedoe-gramin", password: "demo232w" },
   ];
 
   // useEffect(() => {
@@ -53,6 +51,7 @@ function App() {
         try {
           const url = new URL(tabs[0].url);
           setCurrentSite(url.hostname);
+          checkIfAlreadyFilled(url.hostname);
         } catch (err) {
           console.error("Failed to parse URL", err);
         }
@@ -73,6 +72,11 @@ function App() {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
   }, []);
+
+  const checkIfAlreadyFilled = async (website: string) => {
+    const check = await getAlreadyAutofilledWebsites(website);
+    setAlreadyFilled(check);
+  };
 
   const getColor = (level: string) => {
     switch (level) {
@@ -97,20 +101,25 @@ function App() {
   };
 
   const handleLogsVisibility = async () => {
-    const newState = !enableLogs;
-    setEnableLogs(newState);
-    await setLoggingEnabled(newState);
+    try {
+      const newState = !enableLogs;
+      setEnableLogs(newState);
+      await setLoggingEnabled(newState);
 
-    chrome.runtime.sendMessage(
-      { type: "DEBUG_TOGGLE", enabled: newState },
-      (res) => {
-        if (res?.status === "success") {
-          setEnableLogs(res.toggleLogs);
-        } else {
-          setErrorFromBackground(true);
+      chrome.runtime.sendMessage(
+        { type: "DEBUG_TOGGLE", enabled: newState },
+        (res) => {
+          if (chrome.runtime.lastError) {
+            return;
+          }
+          if (res?.status === "success") {
+            setEnableLogs(res.toggleLogs);
+          } else {
+            setErrorFromBackground(true);
+          }
         }
-      }
-    );
+      );
+    } catch {}
   };
 
   const handleFill = (cred: {
@@ -118,23 +127,31 @@ function App() {
     username: string;
     password: string;
   }) => {
-    setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
-    chrome.runtime.sendMessage({ type: "FILL_FIELDS", data: cred }, (res) => {
-      if (res?.status === "success") {
-        setAutofillStatus((prev) => ({
-          ...prev,
-          [cred.site]: res?.status ? "success" : "error",
-        }));
+    try {
+      setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
+      chrome.runtime.sendMessage({ type: "FILL_FIELDS", data: cred }, (res) => {
+        if (chrome.runtime.lastError) {
+          return;
+        }
+        if (res?.status === "success") {
+          setAutofillStatus((prev) => ({
+            ...prev,
+            [cred.site]: res?.status ? "success" : "error",
+          }));
 
-        setAlreadyAutofilledWebsites(currentSite, cred);
+          setAlreadyAutofilledWebsites(
+            currentSite
+            // cred
+          );
 
-        setTimeout(() => {
-          setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
-        }, 3500);
-      } else {
-        setErrorFromBackground(true);
-      }
-    });
+          setTimeout(() => {
+            setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
+          }, 3500);
+        } else {
+          setErrorFromBackground(true);
+        }
+      });
+    } catch {}
   };
 
   const handleSync = () => {
@@ -186,6 +203,7 @@ function App() {
   const handleReloadPage = () => {
     chrome.tabs.reload();
     setErrorFromBackground(false);
+    checkIfAlreadyFilled(currentSite);
     if (matchingCred) {
       setAutofillStatus((prev) => ({ ...prev, [matchingCred.site]: "idle" }));
     }
@@ -250,7 +268,7 @@ function App() {
                     onClick={() => handleFill(matchingCred)}
                   >
                     <CursorArrowRaysIcon className="w-4 h-4" />
-                    Autofill
+                    Apply
                   </button>
                 </div>
 
@@ -268,6 +286,12 @@ function App() {
             ) : (
               <p className="text-sm text-red-400">
                 No credentials found for this site.
+              </p>
+            )}
+
+            {alreadyFilled && (
+              <p className="text-gray-400 text-sm mt-2">
+                Credentials already filled
               </p>
             )}
           </div>
@@ -293,7 +317,7 @@ function App() {
                 <div>
                   <button
                     className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-800 text-white rounded-xl duration-300"
-                    onClick={() => handleFill(cred)}
+                    // onClick={() => handleFill(cred)}
                   >
                     <EyeIcon className="w-4 h-4" />
                     View
@@ -339,8 +363,8 @@ function App() {
 
             {enableLogs && logMessage && (
               <div className="bg-black text-white font-mono px-4 py-2 h-[240px] overflow-y-auto rounded shadow-md mt-5">
-                {logMessage.map((log, i) => (
-                  <div key={i} style={{ color: getColor(log.level) }}>
+                {logMessage.map((log, index) => (
+                  <div key={index} style={{ color: getColor(log.level) }}>
                     [{log.level.toUpperCase()}]: {log.log}
                   </div>
                 ))}

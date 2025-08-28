@@ -10,9 +10,13 @@ export const getLoggingEnabled = (): Promise<boolean> => {
   });
 };
 
-export const setAlreadyAutofilledWebsites = (origin: string, cred: {}) => {
+export const setAlreadyAutofilledWebsites = (
+  origin: string
+  // cred: {}
+) => {
   chrome.storage.local.set({
-    [`autofill:state:${origin}`]: btoa(JSON.stringify(cred)),
+    // [`autofill:state:${origin}`]: btoa(JSON.stringify(cred)),
+    [`autofill:state:${origin}`]: "filled",
   });
 };
 
@@ -20,8 +24,14 @@ export const getAlreadyAutofilledWebsites = (
   origin: string
 ): Promise<boolean> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get([`autofill:state:${origin}`], (result) => {
-      resolve(atob(JSON.parse(result[`autofill:state:${origin}`])) === "success" ? true : false);
+    const key = `autofill:state:${origin}`;
+    chrome.storage.local.get([key], (result) => {
+      // resolve(
+      //   atob(JSON.parse(result[key])) === "success"
+      //     ? true
+      //     : false
+      // );
+      resolve(!!result[key]);
     });
   });
 };
