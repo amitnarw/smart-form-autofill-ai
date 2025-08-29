@@ -36,9 +36,17 @@ function App() {
 
   const credentials = [
     { site: "www.fedex.com", username: "janedoe", password: "demo222" },
-    { site: "online.canarabank.in", username: "janedoe-canara", password: "demo444" },
+    {
+      site: "online.canarabank.in",
+      username: "janedoe-canara",
+      password: "demo444",
+    },
     { site: "citi.com", username: "janedoe-citi", password: "demo99609" },
-    { site: "netbanking.pgb.co.in", username: "janedoe-gramin", password: "demo232w" },
+    {
+      site: "netbanking.pgb.co.in",
+      username: "janedoe-gramin",
+      password: "demo232w",
+    },
   ];
 
   // useEffect(() => {
@@ -305,26 +313,30 @@ function App() {
               placeholder="Search credentials..."
               className="w-full p-2 mb-4 text-sm bg-gray-800 border border-gray-700 placeholder-gray-500 text-gray-200 rounded-xl"
             />
-            {credentials.map((cred, idx) => (
-              <div
-                key={idx}
-                className="flex justify-between items-center p-3 mb-3 bg-gray-800 border border-gray-700 hover:border-blue-500 transition rounded-xl"
-              >
-                <div>
-                  <p className="font-medium text-sm text-white">{cred.site}</p>
-                  <p className="text-xs text-gray-400">{cred.username}***</p>
+            <div className="overflow-y-auto h-[60vh]">
+              {credentials.map((cred, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between items-center p-3 mb-3 bg-gray-800 border border-gray-700 hover:border-blue-500 transition rounded-xl"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-white">
+                      {cred.site}
+                    </p>
+                    <p className="text-xs text-gray-400">{cred.username}***</p>
+                  </div>
+                  <div>
+                    <button
+                      className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-800 text-white rounded-xl duration-300"
+                      // onClick={() => handleFill(cred)}
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                      View
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <button
-                    className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-800 text-white rounded-xl duration-300"
-                    // onClick={() => handleFill(cred)}
-                  >
-                    <EyeIcon className="w-4 h-4" />
-                    View
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
