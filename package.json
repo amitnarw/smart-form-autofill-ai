@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.22",
     "@heroicons/react": "^2.2.0",
     "@tailwindcss/vite": "^4.1.12",
     "@types/chrome": "^0.1.4",
     "@types/node": "^24.3.0",
+    "ai": "^5.0.27",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^4.1.12"

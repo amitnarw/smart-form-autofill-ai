@@ -66,5 +66,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       );
       return true;
     }
-  } catch {}
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error("Error in background file" + err?.message);
+    } else {
+      console.error("Error in background file");
+    }
+  }
 });

@@ -1,3 +1,5 @@
+import { callAI } from "./utils/ai-vercel";
+
 // ---------------- Central fields store ----------------
 const discoveredFields: Array<{
   name: string;
@@ -8,28 +10,43 @@ const discoveredFields: Array<{
 
 let loggingEnabled = false;
 let cred: { [key: string]: any } = {};
-// const hostname = window.location.hostname;
+const hostname = window.location.hostname;
 
 // ---------------- Background logger ----------------
 const sendStatusToBackground = ({
   level,
   log,
+  hostname,
 }: {
   level: string;
   log: string;
+  hostname: string;
 }) => {
-  chrome.runtime.sendMessage(
-    {
-      type: "LOG_MESSAGE",
-      payload: { level, log },
-    },
-    () => {
-      if (chrome.runtime.lastError) {
-        return;
+  try {
+    chrome.runtime.sendMessage(
+      {
+        type: "LOG_MESSAGE",
+        payload: { level, log, hostname },
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          return;
+        }
       }
+    );
+    return true;
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error(
+        "Error while sending message to background type: 'LOG_MESSAGE'" +
+          err?.message
+      );
+    } else {
+      console.error(
+        "Error while sending message to background type: 'LOG_MESSAGE'"
+      );
     }
-  );
-  return true;
+  }
 };
 
 // ---------------- Logging toggle check ----------------
@@ -43,6 +60,7 @@ const checkLogging = async () => {
       log:
         "Error while checking loggingEnabled: " +
         (err instanceof Error ? err.message : JSON.stringify(err)),
+      hostname,
     });
   }
 };
@@ -190,6 +208,22 @@ function getAriaLabelText(input: HTMLElement): string {
   return "";
 }
 
+function getAriaLabelTextNew(input: HTMLElement): string {
+  const ariaLabel = input.getAttribute("aria-label");
+  if (ariaLabel) return ariaLabel.trim();
+  const labelledBy = input.getAttribute("aria-labelledby");
+  if (labelledBy) {
+    return labelledBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+      .map((el) => (el ? el.innerText.trim() : ""))
+      .filter(Boolean)
+      .join(" ");
+  }
+  return "";
+}
+
 function getLabelText(input: HTMLElement): string {
   if (input.id) {
     const lab = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
@@ -197,6 +231,22 @@ function getLabelText(input: HTMLElement): string {
   }
   const wrapper = input.closest("label");
   if (wrapper && isVisibleDeep(wrapper)) {
+    const clone = wrapper.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll("input,textarea,select").forEach((n) => n.remove());
+    if (clone.innerText.trim()) return clone.innerText.trim();
+  }
+  const aria = getAriaLabelText(input);
+  if (aria) return aria;
+  return "";
+}
+
+function getLabelTextNew(input: HTMLElement): string {
+  if (input.id) {
+    const lab = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+    if (lab) return (lab as HTMLElement).innerText.trim();
+  }
+  const wrapper = input.closest("label");
+  if (wrapper) {
     const clone = wrapper.cloneNode(true) as HTMLElement;
     clone.querySelectorAll("input,textarea,select").forEach((n) => n.remove());
     if (clone.innerText.trim()) return clone.innerText.trim();
@@ -233,6 +283,17 @@ function classifyInput(
     return "username";
   return "unknown";
 }
+const inputData: {
+  outerHTMLInput: string | null;
+  outerHTMLLabel: string | null;
+  outerHTMLAria: string | null;
+}[] = [];
+const inputDataWithElement: {
+  outerHTMLInput: string | null;
+  outerHTMLLabel: string | null;
+  outerHTMLAria: string | null;
+  input: HTMLInputElement | HTMLTextAreaElement;
+}[] = [];
 
 // Discover and auto-fill
 function discoverAndFillInputs(initial: boolean = false) {
@@ -243,6 +304,7 @@ function discoverAndFillInputs(initial: boolean = false) {
     sendStatusToBackground({
       level: "info",
       log: "Discovery of fields started",
+      hostname,
     });
   }
   try {
@@ -251,6 +313,20 @@ function discoverAndFillInputs(initial: boolean = false) {
 
     for (const input of candidates) {
       const label = getLabelText(input);
+      const labelNew = getLabelTextNew(input);
+      const ariaLabelNew = getAriaLabelTextNew(input);
+      inputData.push({
+        outerHTMLInput: input.outerHTML || null,
+        outerHTMLLabel: labelNew || null,
+        outerHTMLAria: ariaLabelNew || null,
+      });
+      inputDataWithElement.push({
+        outerHTMLInput: input.outerHTML || null,
+        outerHTMLLabel: labelNew || null,
+        outerHTMLAria: ariaLabelNew || null,
+        input,
+      });
+
       const role = classifyInput(input as HTMLInputElement, label);
       const name =
         input.name ||
@@ -279,6 +355,7 @@ function discoverAndFillInputs(initial: boolean = false) {
       log: `${!initial ? "MutationObserver - " : ""}Total discovered fields: ${
         discoveredFields ? discoveredFields?.length : 0
       }`,
+      hostname,
     });
 
     const requiredFields = discoveredFields.filter(
@@ -296,6 +373,7 @@ function discoverAndFillInputs(initial: boolean = false) {
       log: `${!initial ? "MutationObserver - " : ""}Total required fields : ${
         requiredFields ? requiredFields?.length : 0
       }`,
+      hostname,
     });
 
     // Auto-fill if creds available
@@ -316,6 +394,7 @@ function discoverAndFillInputs(initial: boolean = false) {
       sendStatusToBackground({
         level: "success",
         log: "Auto-Filled Fields Successfully",
+        hostname,
       });
     }
   } catch (err) {
@@ -324,6 +403,7 @@ function discoverAndFillInputs(initial: boolean = false) {
       log:
         "Error in discoverAndFillInputs: " +
         (err instanceof Error ? err.message : JSON.stringify(err)),
+      hostname,
     });
   }
 }
@@ -341,6 +421,7 @@ const debouncedDiscover = debounce(discoverAndFillInputs, 300);
 const observer = new MutationObserver((mut) => {
   for (const m of mut) {
     if (m.type === "childList" || m.type === "attributes") {
+      inputData.length = 0;
       debouncedDiscover();
       break;
     }
@@ -355,6 +436,66 @@ observer.observe(document.body, {
 // Initial run
 discoverAndFillInputs(true);
 
+const getInput = async (
+  message: {
+    data: { username?: string; email?: string; password?: string };
+  },
+  sendResponse: (response?: any) => void,
+  loggingEnabled: boolean
+) => {
+  sendStatusToBackground({
+    level: "info",
+    log: "Sending data array to model for role-based input fields.",
+    hostname,
+  });
+  const data = await callAI({
+    data: JSON.stringify(inputData),
+    loggingEnabled,
+  });
+  const result = JSON.parse(data);
+  if (result?.success) {
+    const formElements: Record<string, string> = result.data;
+
+    Object.entries(message.data).forEach(([key, value]) => {
+      const outerHTML = formElements[key];
+      if (!outerHTML || !value) return;
+
+      const matched = inputDataWithElement.find(
+        (item) => item.outerHTMLInput === outerHTML
+      );
+
+      if (matched?.input) {
+        const input = matched.input;
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.style.outline = "3px solid orange";
+      }
+    });
+
+    if (loggingEnabled) {
+      console.log("Fields Filled Successfully");
+    }
+    sendResponse({
+      status: "success",
+      message: "Fields Filled Successfully",
+    });
+    sendStatusToBackground({
+      level: "success",
+      log: "Fields Filled Successfully",
+      hostname,
+    });
+    return true;
+  } else {
+    sendStatusToBackground({
+      level: "error",
+      log: "Error in callAI function: " + result?.error,
+      hostname,
+    });
+    return false;
+  }
+};
+
 // ---------------- Message Handlers ----------------
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "DEBUG_TOGGLE") {
@@ -366,34 +507,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendStatusToBackground({
       level: "success",
       log: "Debug mode is enabled",
+      hostname,
     });
     return true;
   } else if (message.type === "FILL_FIELDS") {
     try {
-      discoveredFields.forEach(({ role, input }) => {
-        let val = "";
-        if (role === "username") val = message.data.username || "";
-        else if (role === "email") val = message.data.email || "";
-        else if (role === "password") val = message.data.password || "";
-        if (val) {
-          (input as HTMLInputElement).value = val;
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-          (input as HTMLElement).style.outline = "3px solid orange";
+      if (inputData?.length > 0 && inputDataWithElement?.length > 0) {
+        getInput(message, sendResponse, loggingEnabled);
+      } else {
+        if (loggingEnabled) {
+          console.log(
+            "xxxxxxxxxxxxxxxx No input fields found xxxxxxxxxxxxxxxxx"
+          );
         }
-      });
-      if (loggingEnabled) {
-        console.log("Fields Filled Successfully");
+        sendResponse({
+          status: "empty",
+          message: "No input fields found",
+        });
+        sendStatusToBackground({
+          level: "error",
+          log: "No input fields found",
+          hostname,
+        });
       }
-      sendResponse({
-        status: "success",
-        message: "Fields Filled Successfully",
-      });
-      sendStatusToBackground({
-        level: "success",
-        log: "Fields Filled Successfully",
-      });
     } catch (err) {
+      if (loggingEnabled) {
+        console.log(
+          "Error while filling fields: " +
+            (err instanceof Error ? err.message : JSON.stringify(err))
+        );
+      }
       sendResponse({
         status: "error",
         message: err instanceof Error ? err.message : "Unknown error",
@@ -403,6 +546,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         log:
           "Error while filling fields: " +
           (err instanceof Error ? err.message : JSON.stringify(err)),
+        hostname,
       });
     }
     return true;

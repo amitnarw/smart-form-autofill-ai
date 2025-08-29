@@ -30,9 +30,11 @@ function App() {
     {
       level: "info" | "success" | "error";
       log: string;
+      hostname: string;
     }[]
   >([]);
   const [alreadyFilled, setAlreadyFilled] = useState(false);
+  const [error, setError] = useState("");
 
   const credentials = [
     { site: "www.fedex.com", username: "janedoe", password: "demo222" },
@@ -46,6 +48,16 @@ function App() {
       site: "netbanking.pgb.co.in",
       username: "janedoe-gramin",
       password: "demo232w",
+    },
+    {
+      site: "retail.onlinesbi.sbi",
+      username: "janedoe-sbi",
+      password: "demo12345",
+    },
+    {
+      site: "django-pixel-lite.appseed-srv1.com",
+      username: "janedoe-django",
+      password: "demo54321",
     },
   ];
 
@@ -127,13 +139,25 @@ function App() {
           }
         }
       );
-    } catch {}
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(
+          "Error while sending messagto background type: 'DEBUG_TOGGLE' " +
+            err?.message
+        );
+      } else {
+        console.error(
+          "Error while sending messagto background type: 'DEBUG_TOGGLE'"
+        );
+      }
+    }
   };
 
   const handleFill = (cred: {
     site: string;
-    username: string;
-    password: string;
+    username?: string;
+    email?: string;
+    password?: string;
   }) => {
     try {
       setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
@@ -155,11 +179,25 @@ function App() {
           setTimeout(() => {
             setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
           }, 3500);
+        } else if (res?.status === "empty") {
+          setError(res?.message);
+          setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
         } else {
           setErrorFromBackground(true);
         }
       });
-    } catch {}
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(
+          "Error while sending message to background type: 'FILL_FIELDS' " +
+            err?.message
+        );
+      } else {
+        console.error(
+          "Error while sending message to background type: 'FILL_FIELDS'"
+        );
+      }
+    }
   };
 
   const handleSync = () => {
@@ -173,7 +211,12 @@ function App() {
   const AutofillButton = ({
     cred,
   }: {
-    cred: { site: string; username: string; password: string };
+    cred: {
+      site: string;
+      username?: string;
+      email?: string;
+      password?: string;
+    };
   }) => {
     const status = autofillStatus[cred.site] || "idle";
 
@@ -209,11 +252,19 @@ function App() {
   };
 
   const handleReloadPage = () => {
-    chrome.tabs.reload();
-    setErrorFromBackground(false);
-    checkIfAlreadyFilled(currentSite);
-    if (matchingCred) {
-      setAutofillStatus((prev) => ({ ...prev, [matchingCred.site]: "idle" }));
+    try {
+      chrome.tabs.reload();
+      setErrorFromBackground(false);
+      checkIfAlreadyFilled(currentSite);
+      if (matchingCred) {
+        setAutofillStatus((prev) => ({ ...prev, [matchingCred.site]: "idle" }));
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error("Error while trying to reload tab" + err?.message);
+      } else {
+        console.error("Error while trying to reload tab");
+      }
     }
   };
 
@@ -302,6 +353,8 @@ function App() {
                 Credentials already filled
               </p>
             )}
+
+            {error && <p className="text-red-400 text-md mt-5">{error}</p>}
           </div>
         )}
 
@@ -326,10 +379,7 @@ function App() {
                     <p className="text-xs text-gray-400">{cred.username}***</p>
                   </div>
                   <div>
-                    <button
-                      className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-800 text-white rounded-xl duration-300"
-                      // onClick={() => handleFill(cred)}
-                    >
+                    <button className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-800 text-white rounded-xl duration-300">
                       <EyeIcon className="w-4 h-4" />
                       View
                     </button>
@@ -375,11 +425,14 @@ function App() {
 
             {enableLogs && logMessage && (
               <div className="bg-black text-white font-mono px-4 py-2 h-[240px] overflow-y-auto rounded shadow-md mt-5">
-                {logMessage.map((log, index) => (
-                  <div key={index} style={{ color: getColor(log.level) }}>
-                    [{log.level.toUpperCase()}]: {log.log}
-                  </div>
-                ))}
+                {logMessage.map(
+                  (log, index) =>
+                    currentSite === log?.hostname && (
+                      <div key={index} style={{ color: getColor(log.level) }}>
+                        [{log.level.toUpperCase()}]: {log.log}
+                      </div>
+                    )
+                )}
               </div>
             )}
           </div>
