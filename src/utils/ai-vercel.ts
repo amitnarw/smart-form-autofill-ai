@@ -21,6 +21,7 @@ export const callAI = async ({
       );
     }
     const { text } = await generateText({
+      // model: openai.chat("gpt-5-nano"),
       model: openai.chat("gpt-4o-mini"),
       system:
         "You are a utility that classifies HTML <input> or <textarea> elements into specific types for autofill automation.",
@@ -36,25 +37,23 @@ Your task is to classify each input into **exactly one** of the following catego
 - "username"
 - "email"
 - "password"
-- "unknown"
 
 **Rules:**
 - Only one input can be assigned to each of: "username", "email", and "password".
-- All other inputs must be added under "unknown" (as an array).
-- Use outerHTMLInput as the value in your response.
-- If a field is ambiguous, default to "unknown".
+- Use the **index of the object in the input array** as the value for each classification.
+- If a classification is not found or ambiguous, **omit that key from the output**.
+- Do not include any unknown or unclassified inputs in the output.
 
-### ✅ Output Format:
+### Output Format:
 
 Your response must be valid JSON in the following format:
 
 {
   "success": true,
   "data": {
-    "username": "<input ... >",     // if found, otherwise omit
-    "email": "<input ... >",        // if found, otherwise omit
-    "password": "<input ... >",     // if found, otherwise omit
-    "unknown": ["<input ... >", "<textarea ... >"]
+    "username": 0,         // index of the input identified as username (omit if not found)
+    "email": 1,            // index of the input identified as email (omit if not found)
+    "password": 2          // index of the input identified as password (omit if not found)
   },
   "error": {}
 }

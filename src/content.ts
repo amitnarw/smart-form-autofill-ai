@@ -21,32 +21,40 @@ const sendStatusToBackground = ({
   level: string;
   log: string;
   hostname: string;
-}) => {
-  try {
-    chrome.runtime.sendMessage(
-      {
-        type: "LOG_MESSAGE",
-        payload: { level, log, hostname },
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          return;
+}): Promise<boolean> => {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "LOG_MESSAGE",
+          payload: { level, log, hostname },
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error while sending message to background type: 'LOG_MESSAGE': " +
+                chrome.runtime.lastError.message
+            );
+            resolve(false);
+            return;
+          }
+          resolve(true);
         }
+      );
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(
+          "Error while sending message to background type: 'LOG_MESSAGE': " +
+            err.message
+        );
+      } else {
+        console.error(
+          "Error while sending message to background type: 'LOG_MESSAGE'"
+        );
       }
-    );
-    return true;
-  } catch (err) {
-    if (err instanceof Error) {
-      console.error(
-        "Error while sending message to background type: 'LOG_MESSAGE'" +
-          err?.message
-      );
-    } else {
-      console.error(
-        "Error while sending message to background type: 'LOG_MESSAGE'"
-      );
+      resolve(false);
     }
-  }
+  });
 };
 
 // ---------------- Logging toggle check ----------------
@@ -454,16 +462,15 @@ const getInput = async (
   });
   const result = JSON.parse(data);
   if (result?.success) {
-    const formElements: Record<string, string> = result.data;
+    const indexMap: Record<string, number> = result.data;
 
     Object.entries(message.data).forEach(([key, value]) => {
-      const outerHTML = formElements[key];
-      if (!outerHTML || !value) return;
+      if (!value) return;
 
-      const matched = inputDataWithElement.find(
-        (item) => item.outerHTMLInput === outerHTML
-      );
+      const idx = indexMap[key];
+      if (typeof idx !== "number") return;
 
+      const matched = inputDataWithElement[idx];
       if (matched?.input) {
         const input = matched.input;
         input.value = value;
