@@ -9,7 +9,7 @@ const discoveredFields: Array<{
 }> = [];
 
 let loggingEnabled = false;
-let cred: { [key: string]: any } = {};
+// let cred: { [key: string]: any } = {};
 const hostname = window.location.hostname;
 
 // ---------------- Background logger ----------------
@@ -281,8 +281,10 @@ function classifyInput(
     label
   ).toLowerCase();
 
-  if (textToCheck.includes("password")) return "password";
-  if (textToCheck.includes("email")) return "email";
+  if (textToCheck.includes("password") || textToCheck.includes("pwd"))
+    return "password";
+  if (textToCheck.includes("email") || textToCheck.includes("mail"))
+    return "email";
   if (
     textToCheck.includes("user") ||
     textToCheck.includes("login") ||
@@ -318,6 +320,9 @@ function discoverAndFillInputs(initial: boolean = false) {
   try {
     discoveredFields.length = 0;
     const candidates = collectCandidates().filter(isVisibleDeep);
+
+    inputData.length = 0;
+    inputDataWithElement.length = 0;
 
     for (const input of candidates) {
       const label = getLabelText(input);
@@ -384,27 +389,41 @@ function discoverAndFillInputs(initial: boolean = false) {
       hostname,
     });
 
-    // Auto-fill if creds available
-    if (cred && Object.keys(cred).length > 0) {
-      discoveredFields.forEach(({ role, input }) => {
-        let valueToFill = "";
-        if (role === "username") valueToFill = cred.username || "";
-        else if (role === "email") valueToFill = cred.email || "";
-        else if (role === "password") valueToFill = cred.password || "";
-
-        if (valueToFill) {
-          (input as HTMLInputElement).value = valueToFill;
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-          (input as HTMLElement).style.outline = "3px solid orange";
-        }
-      });
-      sendStatusToBackground({
-        level: "success",
-        log: "Auto-Filled Fields Successfully",
-        hostname,
-      });
+    if (loggingEnabled) {
+      console.log(
+        `${!initial ? "MutationObserver - " : ""}Fields for AI:`,
+        inputData
+      );
     }
+    sendStatusToBackground({
+      level: "success",
+      log: `${!initial ? "MutationObserver - " : ""}Fields for AI: ${
+        inputData ? inputData?.length : 0
+      }`,
+      hostname,
+    });
+
+    // Auto-fill if creds available
+    // if (cred && Object.keys(cred).length > 0) {
+    //   discoveredFields.forEach(({ role, input }) => {
+    //     let valueToFill = "";
+    //     if (role === "username") valueToFill = cred.username || "";
+    //     else if (role === "email") valueToFill = cred.email || "";
+    //     else if (role === "password") valueToFill = cred.password || "";
+
+    //     if (valueToFill) {
+    //       (input as HTMLInputElement).value = valueToFill;
+    //       input.dispatchEvent(new Event("input", { bubbles: true }));
+    //       input.dispatchEvent(new Event("change", { bubbles: true }));
+    //       (input as HTMLElement).style.outline = "3px solid orange";
+    //     }
+    //   });
+    //   sendStatusToBackground({
+    //     level: "success",
+    //     log: "Auto-Filled Fields Successfully",
+    //     hostname,
+    //   });
+    // }
   } catch (err) {
     sendStatusToBackground({
       level: "error",
@@ -429,7 +448,9 @@ const debouncedDiscover = debounce(discoverAndFillInputs, 300);
 const observer = new MutationObserver((mut) => {
   for (const m of mut) {
     if (m.type === "childList" || m.type === "attributes") {
-      inputData.length = 0;
+      // inputData.length = 0;
+      // inputDataWithElement.length = 0;
+      // console.log(inputData, inputDataWithElement, '1111111111111111')
       debouncedDiscover();
       break;
     }
@@ -451,55 +472,89 @@ const getInput = async (
   sendResponse: (response?: any) => void,
   loggingEnabled: boolean
 ) => {
-  sendStatusToBackground({
-    level: "info",
-    log: "Sending data array to model for role-based input fields.",
-    hostname,
-  });
-  const data = await callAI({
-    data: JSON.stringify(inputData),
-    loggingEnabled,
-  });
-  const result = JSON.parse(data);
-  if (result?.success) {
-    const indexMap: Record<string, number> = result.data;
-
-    Object.entries(message.data).forEach(([key, value]) => {
-      if (!value) return;
-
-      const idx = indexMap[key];
-      if (typeof idx !== "number") return;
-
-      const matched = inputDataWithElement[idx];
-      if (matched?.input) {
-        const input = matched.input;
-        input.value = value;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-        input.style.outline = "3px solid orange";
-      }
-    });
-
-    if (loggingEnabled) {
-      console.log("Fields Filled Successfully");
-    }
-    sendResponse({
-      status: "success",
-      message: "Fields Filled Successfully",
-    });
+  try {
     sendStatusToBackground({
-      level: "success",
-      log: "Fields Filled Successfully",
+      level: "info",
+      log: "Sending data array to model for role-based input fields.",
       hostname,
     });
-    return true;
-  } else {
+    const data = await callAI({
+      data: JSON.stringify(inputData),
+      loggingEnabled,
+    });
+    const result = JSON.parse(data);
+
+    if (result?.success) {
+      const indexMap: Record<string, number> = result.data;
+
+      Object.entries(message.data).forEach(([key, value]) => {
+        if (!value) return;
+
+        const index = indexMap[key];
+        if (typeof index !== "number") return;
+
+        const matched = inputDataWithElement[index];
+        if (matched?.input) {
+          const input = matched.input;
+          input.value = value;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          input.style.outline = "3px solid orange";
+        }
+      });
+
+      if (loggingEnabled) {
+        console.log("Fields Filled Successfully");
+      }
+      sendResponse({
+        status: "success",
+        message: "Fields Filled Successfully",
+      });
+      sendStatusToBackground({
+        level: "success",
+        log: "Fields Filled Successfully",
+        hostname,
+      });
+      return true;
+    } else {
+      if (loggingEnabled) {
+        console.log("Error in callAI function: " + result?.error?.message);
+      }
+      sendResponse({
+        status: "empty",
+        message: "Error in callAI function: " + result?.error?.message,
+      });
+      sendStatusToBackground({
+        level: "error",
+        log: "Error in callAI function: " + result?.error?.message,
+        hostname,
+      });
+      return false;
+    }
+  } catch (err) {
+    if (loggingEnabled) {
+      console.log(
+        "Error in callAI function: " +
+          (err instanceof Error ? err.message : JSON.stringify(err))
+      );
+    }
+    sendResponse({
+      status: "empty",
+      message:
+        "Error in callAI function: " +
+        (err instanceof Error ? err.message : JSON.stringify(err)),
+    });
     sendStatusToBackground({
       level: "error",
-      log: "Error in callAI function: " + result?.error,
+      log:
+        "Error in callAI function: " +
+        (err instanceof Error ? err.message : JSON.stringify(err)),
       hostname,
     });
     return false;
+  } finally {
+    // inputData.length = 0;
+    // inputDataWithElement.length = 0;
   }
 };
 
@@ -517,7 +572,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       hostname,
     });
     return true;
-  } else if (message.type === "FILL_FIELDS") {
+  } else if (message.type === "AI_FILL_FIELDS") {
     try {
       if (inputData?.length > 0 && inputDataWithElement?.length > 0) {
         getInput(message, sendResponse, loggingEnabled);
@@ -544,6 +599,63 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             (err instanceof Error ? err.message : JSON.stringify(err))
         );
       }
+      sendResponse({
+        status: "error",
+        message: err instanceof Error ? err.message : "Unknown error",
+      });
+      sendStatusToBackground({
+        level: "error",
+        log:
+          "Error while filling fields: " +
+          (err instanceof Error ? err.message : JSON.stringify(err)),
+        hostname,
+      });
+    }
+    return true;
+  } else if (message.type === "FILL_FIELDS") {
+    try {
+      if (inputData?.length > 0 && inputDataWithElement?.length > 0) {
+        discoveredFields.forEach(({ role, input }) => {
+          let val = "";
+          if (role === "username") val = message.data.username || "";
+          else if (role === "email") val = message.data.email || "";
+          else if (role === "password") val = message.data.password || "";
+          if (val) {
+            (input as HTMLInputElement).value = val;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            (input as HTMLElement).style.outline = "3px solid orange";
+          }
+        });
+        if (loggingEnabled) {
+          console.log("Fields Filled Successfully");
+        }
+        sendResponse({
+          status: "success",
+          message: "Fields Filled Successfully",
+        });
+        sendStatusToBackground({
+          level: "success",
+          log: "Fields Filled Successfully",
+          hostname,
+        });
+      } else {
+        if (loggingEnabled) {
+          console.log(
+            "xxxxxxxxxxxxxxxx No input fields found xxxxxxxxxxxxxxxxx"
+          );
+        }
+        sendResponse({
+          status: "empty",
+          message: "No input fields found",
+        });
+        sendStatusToBackground({
+          level: "error",
+          log: "No input fields found",
+          hostname,
+        });
+      }
+    } catch (err) {
       sendResponse({
         status: "error",
         message: err instanceof Error ? err.message : "Unknown error",

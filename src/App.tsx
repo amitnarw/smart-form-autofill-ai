@@ -7,6 +7,7 @@ import {
   GlobeAltIcon,
   EyeIcon,
   CursorArrowRaysIcon,
+  CursorArrowRippleIcon,
   XCircleIcon,
 } from "@heroicons/react/24/solid";
 import {
@@ -44,6 +45,12 @@ function App() {
       password: "demo444",
     },
     { site: "citi.com", username: "janedoe-citi", password: "demo99609" },
+    {
+      site: "localhost",
+      email: "janedoe-localhost@test.com",
+      username: "janedoe-localhost",
+      password: "demo532423",
+    },
     {
       site: "netbanking.pgb.co.in",
       username: "janedoe-gramin",
@@ -153,39 +160,45 @@ function App() {
     }
   };
 
-  const handleFill = (cred: {
-    site: string;
-    username?: string;
-    email?: string;
-    password?: string;
-  }) => {
+  const handleFill = (
+    cred: {
+      site: string;
+      username?: string;
+      email?: string;
+      password?: string;
+    },
+    aiApply: boolean
+  ) => {
     try {
       setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
-      chrome.runtime.sendMessage({ type: "FILL_FIELDS", data: cred }, (res) => {
-        if (chrome.runtime.lastError) {
-          return;
-        }
-        if (res?.status === "success") {
-          setAutofillStatus((prev) => ({
-            ...prev,
-            [cred.site]: res?.status ? "success" : "error",
-          }));
+      chrome.runtime.sendMessage(
+        { type: aiApply ? "AI_FILL_FIELDS" : "FILL_FIELDS", data: cred },
+        (res) => {
+          if (chrome.runtime.lastError) {
+            return;
+          }
+          if (res?.status === "success") {
+            setAutofillStatus((prev) => ({
+              ...prev,
+              [cred.site]: res?.status ? "success" : "error",
+            }));
 
-          setAlreadyAutofilledWebsites(
-            currentSite
-            // cred
-          );
+            setAlreadyAutofilledWebsites(
+              currentSite
+              // cred
+            );
 
-          setTimeout(() => {
+            setTimeout(() => {
+              setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
+            }, 3500);
+          } else if (res?.status === "empty") {
+            setError(res?.message);
             setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
-          }, 3500);
-        } else if (res?.status === "empty") {
-          setError(res?.message);
-          setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
-        } else {
-          setErrorFromBackground(true);
+          } else {
+            setErrorFromBackground(true);
+          }
         }
-      });
+      );
     } catch (err) {
       if (err instanceof Error) {
         console.error(
@@ -304,7 +317,7 @@ function App() {
             </p>
 
             {matchingCred ? (
-              <div className="flex justify-between items-center p-3 bg-gray-800 border border-gray-700 rounded-xl relative">
+              <div className="flex justify-between items-center p-3 py-4 bg-gray-800 border border-gray-700 rounded-xl relative">
                 <div>
                   <p className="font-medium text-sm text-white">
                     {matchingCred.site}
@@ -314,21 +327,39 @@ function App() {
                   </p>
                 </div>
 
-                <div
-                  className={`absolute right-2 transition-opacity duration-300 ${
-                    autofillStatus[matchingCred.site] === "idle" ||
-                    !autofillStatus[matchingCred.site]
-                      ? "opacity-100"
-                      : "opacity-0 pointer-events-none"
-                  }`}
-                >
-                  <button
-                    className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl duration-300"
-                    onClick={() => handleFill(matchingCred)}
+                <div>
+                  <div
+                    className={`absolute right-2 top-1.5 transition-opacity duration-300 ${
+                      autofillStatus[matchingCred.site] === "idle" ||
+                      !autofillStatus[matchingCred.site]
+                        ? "opacity-100"
+                        : "opacity-0 pointer-events-none"
+                    }`}
                   >
-                    <CursorArrowRaysIcon className="w-4 h-4" />
-                    Apply
-                  </button>
+                    <button
+                      className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl duration-300"
+                      onClick={() => handleFill(matchingCred, false)}
+                    >
+                      <CursorArrowRaysIcon className="w-4 h-4" />
+                      Apply
+                    </button>
+                  </div>
+                  <div
+                    className={`absolute right-2 bottom-1.5 transition-opacity duration-300 ${
+                      autofillStatus[matchingCred.site] === "idle" ||
+                      !autofillStatus[matchingCred.site]
+                        ? "opacity-100"
+                        : "opacity-0 pointer-events-none"
+                    }`}
+                  >
+                    <button
+                      className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl duration-300"
+                      onClick={() => handleFill(matchingCred, true)}
+                    >
+                      <CursorArrowRippleIcon className="w-4 h-4" />
+                      AI Apply
+                    </button>
+                  </div>
                 </div>
 
                 <div
@@ -428,8 +459,19 @@ function App() {
                 {logMessage.map(
                   (log, index) =>
                     currentSite === log?.hostname && (
-                      <div key={index} style={{ color: getColor(log.level) }}>
-                        [{log.level.toUpperCase()}]: {log.log}
+                      <div
+                        key={index}
+                        style={{ color: getColor(log.level) }}
+                        className="flex flex-row items-center justify-center border-b border-gray-800 pb-2 mb-2"
+                      >
+                        [{log.level.toUpperCase()} |{" "}
+                        {new globalThis.Date().toLocaleString("en-IN", {
+                          hour12: true,
+                          hour: "numeric",
+                          minute: "numeric",
+                          second: "2-digit",
+                        })}
+                        ]: {log.log}
                       </div>
                     )
                 )}

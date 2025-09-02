@@ -3,7 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 const openai = createOpenAI({
   apiKey:
-    "import.meta.env.VITE_OPENAI_API_KEY",
+    import.meta.env.VITE_OPENAI_API_KEY,
 });
 
 export const callAI = async ({
@@ -21,8 +21,9 @@ export const callAI = async ({
       );
     }
     const { text } = await generateText({
-      // model: openai.chat("gpt-5-nano"),
-      model: openai.chat("gpt-4o-mini"),
+      // model: openai.chat("gpt-4o-mini"),
+      model: openai.chat("gpt-4.1-nano"),
+      // model: openai.chat("gpt-4o"),
       system:
         "You are a utility that classifies HTML <input> or <textarea> elements into specific types for autofill automation.",
       prompt: `
@@ -38,22 +39,24 @@ Your task is to classify each input into **exactly one** of the following catego
 - "email"
 - "password"
 
-**Rules:**
-- Only one input can be assigned to each of: "username", "email", and "password".
-- Use the **index of the object in the input array** as the value for each classification.
-- If a classification is not found or ambiguous, **omit that key from the output**.
-- Do not include any unknown or unclassified inputs in the output.
+**Classification Rules:**
+- Use the **index** of the object in the input array as the value for each classification.
+- You may only assign **one field** to each of: "username", "email", "password".
+- If a field contains words like "user", "username", or "login", classify it as "username".
+- If a field contains words like "email", "e-mail", or "email address", classify it as "email".
+- If a field has type="password" or contains the word "password", classify it as "password".
+- If **none** of the fields can be confidently classified as username, email, or password, return a failure.
 
 ### Output Format:
 
-Your response must be valid JSON in the following format:
+- If one or more of "username", "email", or "password" is found:
 
 {
   "success": true,
   "data": {
-    "username": 0,         // index of the input identified as username (omit if not found)
-    "email": 1,            // index of the input identified as email (omit if not found)
-    "password": 2          // index of the input identified as password (omit if not found)
+    "username": 0,         // optional
+    "email": 1,            // optional
+    "password": 2          // optional
   },
   "error": {}
 }
@@ -103,4 +106,3 @@ ${data}
     }
   }
 };
-
