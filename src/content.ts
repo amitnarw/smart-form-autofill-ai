@@ -448,9 +448,6 @@ const debouncedDiscover = debounce(discoverAndFillInputs, 300);
 const observer = new MutationObserver((mut) => {
   for (const m of mut) {
     if (m.type === "childList" || m.type === "attributes") {
-      // inputData.length = 0;
-      // inputDataWithElement.length = 0;
-      // console.log(inputData, inputDataWithElement, '1111111111111111')
       debouncedDiscover();
       break;
     }

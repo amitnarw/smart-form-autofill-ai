@@ -47,7 +47,7 @@ function App() {
     { site: "citi.com", username: "janedoe-citi", password: "demo99609" },
     {
       site: "localhost",
-      email: "janedoe-localhost@test.com",
+      // email: "janedoe-localhost@test.com",
       username: "janedoe-localhost",
       password: "demo532423",
     },
