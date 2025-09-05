@@ -38,6 +38,8 @@ Your task is to classify each input into **exactly one** of the following catego
 - "username"
 - "email"
 - "password"
+- "phone"
+- "address"
 
 **Classification Rules:**
 - Use the **index** of the object in the input array as the value for each classification.
@@ -57,6 +59,8 @@ Your task is to classify each input into **exactly one** of the following catego
     "username": 0,         // optional
     "email": 1,            // optional
     "password": 2          // optional
+    "phone": 3          // optional
+    "address": 4          // optional
   },
   "error": {}
 }

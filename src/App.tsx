@@ -7,7 +7,7 @@ import {
   GlobeAltIcon,
   EyeIcon,
   CursorArrowRaysIcon,
-  CursorArrowRippleIcon,
+  // CursorArrowRippleIcon,
   XCircleIcon,
 } from "@heroicons/react/24/solid";
 import {
@@ -35,7 +35,7 @@ function App() {
     }[]
   >([]);
   const [alreadyFilled, setAlreadyFilled] = useState(false);
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState({ type: "", message: "" });
 
   const credentials = [
     { site: "www.fedex.com", username: "janedoe", password: "demo222" },
@@ -87,16 +87,27 @@ function App() {
 
     checkLogs();
 
-    const handleMessage = (message: any) => {
+    const handleLogs = (message: any) => {
       if (message.type === "LOG_MESSAGE") {
         setLogMessage((preVal) => [...preVal, message.payload]);
       }
     };
 
-    chrome.runtime.onMessage.addListener(handleMessage);
+    const handleStatus = (message: any) => {
+      if (message.type === "STATUS") {
+        setStatus({
+          type: message.payload?.type,
+          message: message.payload?.message,
+        });
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleLogs);
+    chrome.runtime.onMessage.addListener(handleStatus);
 
     return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage);
+      chrome.runtime.onMessage.removeListener(handleLogs);
+      chrome.runtime.onMessage.removeListener(handleStatus);
     };
   }, []);
 
@@ -160,45 +171,42 @@ function App() {
     }
   };
 
-  const handleFill = (
-    cred: {
-      site: string;
-      username?: string;
-      email?: string;
-      password?: string;
-    },
-    aiApply: boolean
-  ) => {
+  const handleFill = (cred: {
+    site: string;
+    username?: string;
+    email?: string;
+    password?: string;
+  }) => {
     try {
       setAutofillStatus((prev) => ({ ...prev, [cred.site]: "loading" }));
-      chrome.runtime.sendMessage(
-        { type: aiApply ? "AI_FILL_FIELDS" : "FILL_FIELDS", data: cred },
-        (res) => {
-          if (chrome.runtime.lastError) {
-            return;
-          }
-          if (res?.status === "success") {
-            setAutofillStatus((prev) => ({
-              ...prev,
-              [cred.site]: res?.status ? "success" : "error",
-            }));
-
-            setAlreadyAutofilledWebsites(
-              currentSite
-              // cred
-            );
-
-            setTimeout(() => {
-              setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
-            }, 3500);
-          } else if (res?.status === "empty") {
-            setError(res?.message);
-            setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
-          } else {
-            setErrorFromBackground(true);
-          }
+      chrome.runtime.sendMessage({ type: "FILL_FIELDS", data: cred }, (res) => {
+        if (chrome.runtime.lastError) {
+          return;
         }
-      );
+
+        if (res?.status === "success") {
+          setAutofillStatus((prev) => ({
+            ...prev,
+            [cred.site]: res?.status ? "success" : "error",
+          }));
+
+          setAlreadyAutofilledWebsites(
+            currentSite
+            // cred
+          );
+
+          setTimeout(() => {
+            setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
+          }, 3500);
+        } else if (res?.status === "stop") {
+          // setError(res?.message);
+          setAutofillStatus((prev) => ({ ...prev, [cred.site]: "idle" }));
+        } else if (res?.status === "empty") {
+          // setError(res?.message);
+        } else {
+          setErrorFromBackground(true);
+        }
+      });
     } catch (err) {
       if (err instanceof Error) {
         console.error(
@@ -317,7 +325,7 @@ function App() {
             </p>
 
             {matchingCred ? (
-              <div className="flex justify-between items-center p-3 py-4 bg-gray-800 border border-gray-700 rounded-xl relative">
+              <div className="flex justify-between items-center p-3 bg-gray-800 border border-gray-700 rounded-xl relative">
                 <div>
                   <p className="font-medium text-sm text-white">
                     {matchingCred.site}
@@ -327,24 +335,23 @@ function App() {
                   </p>
                 </div>
 
-                <div>
-                  <div
-                    className={`absolute right-2 top-1.5 transition-opacity duration-300 ${
-                      autofillStatus[matchingCred.site] === "idle" ||
-                      !autofillStatus[matchingCred.site]
-                        ? "opacity-100"
-                        : "opacity-0 pointer-events-none"
-                    }`}
+                <div
+                  className={`absolute right-2 transition-opacity duration-300 ${
+                    autofillStatus[matchingCred.site] === "idle" ||
+                    !autofillStatus[matchingCred.site]
+                      ? "opacity-100"
+                      : "opacity-0 pointer-events-none"
+                  }`}
+                >
+                  <button
+                    className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl duration-300"
+                    onClick={() => handleFill(matchingCred)}
                   >
-                    <button
-                      className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-xl duration-300"
-                      onClick={() => handleFill(matchingCred, false)}
-                    >
-                      <CursorArrowRaysIcon className="w-4 h-4" />
-                      Apply
-                    </button>
-                  </div>
-                  <div
+                    <CursorArrowRaysIcon className="w-4 h-4" />
+                    Apply
+                  </button>
+                </div>
+                {/* <div
                     className={`absolute right-2 bottom-1.5 transition-opacity duration-300 ${
                       autofillStatus[matchingCred.site] === "idle" ||
                       !autofillStatus[matchingCred.site]
@@ -359,8 +366,7 @@ function App() {
                       <CursorArrowRippleIcon className="w-4 h-4" />
                       AI Apply
                     </button>
-                  </div>
-                </div>
+                  </div> */}
 
                 <div
                   className={`absolute right-2 transition-opacity duration-300 ${
@@ -385,7 +391,19 @@ function App() {
               </p>
             )}
 
-            {error && <p className="text-red-400 text-md mt-5">{error}</p>}
+            {status?.type && (
+              <p
+                className={`${
+                  status?.type === "error"
+                    ? "text-red-400"
+                    : status?.type === "success"
+                    ? "text-green-400"
+                    : "text-blue-700"
+                } text-md mt-5`}
+              >
+                {status?.message}
+              </p>
+            )}
           </div>
         )}
 

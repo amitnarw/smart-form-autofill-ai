@@ -9,11 +9,10 @@ const discoveredFields: Array<{
 }> = [];
 
 let loggingEnabled = false;
-// let cred: { [key: string]: any } = {};
 const hostname = window.location.hostname;
 
 // ---------------- Background logger ----------------
-const sendStatusToBackground = ({
+const sendLogsToBackground = ({
   level,
   log,
   hostname,
@@ -57,13 +56,57 @@ const sendStatusToBackground = ({
   });
 };
 
+const sendStatusToBackground = ({
+  type,
+  message,
+  hostname,
+}: {
+  type: string;
+  message: string;
+  hostname: string;
+}): Promise<boolean> => {
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "STATUS",
+          payload: { type, message, hostname },
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Error while sending message to background type: 'STATUS': " +
+                chrome.runtime.lastError.message
+            );
+            resolve(false);
+            return;
+          }
+          resolve(true);
+        }
+      );
+    } catch (err) {
+      if (err instanceof Error) {
+        console.error(
+          "Error while sending message to background type: 'STATUS': " +
+            err.message
+        );
+      } else {
+        console.error(
+          "Error while sending message to background type: 'STATUS'"
+        );
+      }
+      resolve(false);
+    }
+  });
+};
+
 // ---------------- Logging toggle check ----------------
 const checkLogging = async () => {
   try {
     const check = await chrome.storage.local.get("loggingEnabled");
     loggingEnabled = check?.loggingEnabled;
   } catch (err) {
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "error",
       log:
         "Error while checking loggingEnabled: " +
@@ -74,32 +117,8 @@ const checkLogging = async () => {
 };
 checkLogging();
 
-// ---------------- Credentials cache ----------------
-// const autoFillAlreadyApplied = async () => {
-//   try {
-//     const check = await chrome.storage.local.get(`autofill:state:${hostname}`);
-//     if (check && Object.keys(check).length > 0) {
-//       sendStatusToBackground({
-//         level: "info",
-//         log: "Credentials found for this website",
-//       });
-//       if (loggingEnabled) console.log("Credentials found for this website");
-//       cred = JSON.parse(atob(check[`autofill:state:${hostname}`]));
-//     }
-//   } catch (err) {
-//     sendStatusToBackground({
-//       level: "error",
-//       log:
-//         "Error while auto filling credentials: " +
-//         (err instanceof Error ? err.message : JSON.stringify(err)),
-//     });
-//   }
-// };
-// autoFillAlreadyApplied();
-
 // ------- Helpers for Deep Field Discovery ----
 
-// Visibility check
 function hasSize(rect: DOMRect) {
   return rect && rect.width > 0 && rect.height > 0;
 }
@@ -281,16 +300,29 @@ function classifyInput(
     label
   ).toLowerCase();
 
-  if (textToCheck.includes("password") || textToCheck.includes("pwd"))
+  if (
+    textToCheck.includes("password") ||
+    textToCheck.includes("pwd") ||
+    textToCheck.includes("pass")
+  )
     return "password";
   if (textToCheck.includes("email") || textToCheck.includes("mail"))
     return "email";
   if (
     textToCheck.includes("user") ||
+    textToCheck.includes("usr") ||
     textToCheck.includes("login") ||
     textToCheck.includes("account")
   )
     return "username";
+  if (
+    textToCheck.includes("phone") ||
+    textToCheck.includes("number") ||
+    textToCheck.includes("tel") ||
+    textToCheck.includes("telephone")
+  )
+    return "phone";
+  if (textToCheck.includes("address")) return "address";
   return "unknown";
 }
 const inputData: {
@@ -312,6 +344,11 @@ function discoverAndFillInputs(initial: boolean = false) {
       console.log("Fields Filled Successfully");
     }
     sendStatusToBackground({
+      type: "info",
+      message: "Discovery of fields started",
+      hostname,
+    });
+    sendLogsToBackground({
       level: "info",
       log: "Discovery of fields started",
       hostname,
@@ -363,7 +400,7 @@ function discoverAndFillInputs(initial: boolean = false) {
         discoveredFields
       );
     }
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "success",
       log: `${!initial ? "MutationObserver - " : ""}Total discovered fields: ${
         discoveredFields ? discoveredFields?.length : 0
@@ -381,7 +418,7 @@ function discoverAndFillInputs(initial: boolean = false) {
         requiredFields
       );
     }
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "info",
       log: `${!initial ? "MutationObserver - " : ""}Total required fields : ${
         requiredFields ? requiredFields?.length : 0
@@ -395,37 +432,15 @@ function discoverAndFillInputs(initial: boolean = false) {
         inputData
       );
     }
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "success",
       log: `${!initial ? "MutationObserver - " : ""}Fields for AI: ${
         inputData ? inputData?.length : 0
       }`,
       hostname,
     });
-
-    // Auto-fill if creds available
-    // if (cred && Object.keys(cred).length > 0) {
-    //   discoveredFields.forEach(({ role, input }) => {
-    //     let valueToFill = "";
-    //     if (role === "username") valueToFill = cred.username || "";
-    //     else if (role === "email") valueToFill = cred.email || "";
-    //     else if (role === "password") valueToFill = cred.password || "";
-
-    //     if (valueToFill) {
-    //       (input as HTMLInputElement).value = valueToFill;
-    //       input.dispatchEvent(new Event("input", { bubbles: true }));
-    //       input.dispatchEvent(new Event("change", { bubbles: true }));
-    //       (input as HTMLElement).style.outline = "3px solid orange";
-    //     }
-    //   });
-    //   sendStatusToBackground({
-    //     level: "success",
-    //     log: "Auto-Filled Fields Successfully",
-    //     hostname,
-    //   });
-    // }
   } catch (err) {
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "error",
       log:
         "Error in discoverAndFillInputs: " +
@@ -464,13 +479,18 @@ discoverAndFillInputs(true);
 
 const getInput = async (
   message: {
-    data: { username?: string; email?: string; password?: string };
+    data: Record<string, string | undefined>;
   },
   sendResponse: (response?: any) => void,
   loggingEnabled: boolean
 ) => {
   try {
     sendStatusToBackground({
+      type: "info",
+      message: "Sending data array to model for role-based input fields.",
+      hostname,
+    });
+    sendLogsToBackground({
       level: "info",
       log: "Sending data array to model for role-based input fields.",
       hostname,
@@ -484,44 +504,96 @@ const getInput = async (
     if (result?.success) {
       const indexMap: Record<string, number> = result.data;
 
-      Object.entries(message.data).forEach(([key, value]) => {
-        if (!value) return;
+      let missingFields: string[] = [];
 
-        const index = indexMap[key];
-        if (typeof index !== "number") return;
+      Object.keys(indexMap).forEach((fieldKey) => {
+        const value = message?.data?.[fieldKey];
 
-        const matched = inputDataWithElement[index];
-        if (matched?.input) {
-          const input = matched.input;
-          input.value = value;
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-          input.style.outline = "3px solid orange";
+        if (value) {
+          const index = indexMap[fieldKey];
+          if (typeof index !== "number") return;
+
+          const matched = inputDataWithElement[index];
+          if (matched?.input) {
+            const input = matched.input;
+            input.value = value;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.style.outline = "3px solid orange";
+          }
+        } else {
+          missingFields.push(fieldKey);
         }
       });
 
-      if (loggingEnabled) {
-        console.log("Fields Filled Successfully");
+      if (missingFields.length === 0) {
+        if (loggingEnabled) {
+          console.log("Fields Filled Successfully");
+        }
+
+        sendStatusToBackground({
+          type: "success",
+          message: "Fields Filled Successfully",
+          hostname,
+        });
+
+        sendResponse({
+          status: "success",
+          message: "Fields Filled Successfully",
+        });
+
+        sendLogsToBackground({
+          level: "success",
+          log: "Fields Filled Successfully",
+          hostname,
+        });
+      } else {
+        if (loggingEnabled) {
+          console.log(
+            "Some fields could not be filled. Missing fields:",
+            missingFields
+          );
+        }
+
+        sendStatusToBackground({
+          type: "error",
+          message: `Some fields could not be filled. Missing fields: ${missingFields.join(
+            ", "
+          )}`,
+          hostname,
+        });
+
+        sendResponse({
+          status: "stop",
+          message: `Some fields could not be filled. Missing fields: ${missingFields.join(
+            ", "
+          )}`,
+        });
+
+        sendLogsToBackground({
+          level: "info",
+          log: `Some fields could not be filled. Missing fields: ${missingFields.join(
+            ", "
+          )}`,
+          hostname,
+        });
       }
-      sendResponse({
-        status: "success",
-        message: "Fields Filled Successfully",
-      });
-      sendStatusToBackground({
-        level: "success",
-        log: "Fields Filled Successfully",
-        hostname,
-      });
+
       return true;
     } else {
       if (loggingEnabled) {
         console.log("Error in callAI function: " + result?.error?.message);
       }
       sendResponse({
-        status: "empty",
+        status: "stop",
         message: "Error in callAI function: " + result?.error?.message,
       });
       sendStatusToBackground({
+        type: "error",
+        message: "Error in callAI function: " + result?.error?.message,
+        hostname,
+      });
+      sendLogsToBackground({
         level: "error",
         log: "Error in callAI function: " + result?.error?.message,
         hostname,
@@ -541,7 +613,7 @@ const getInput = async (
         "Error in callAI function: " +
         (err instanceof Error ? err.message : JSON.stringify(err)),
     });
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "error",
       log:
         "Error in callAI function: " +
@@ -549,9 +621,6 @@ const getInput = async (
       hostname,
     });
     return false;
-  } finally {
-    // inputData.length = 0;
-    // inputDataWithElement.length = 0;
   }
 };
 
@@ -563,90 +632,99 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       console.log("Debug mode is enabled");
     }
     sendResponse({ status: "success", toggleLogs: loggingEnabled });
-    sendStatusToBackground({
+    sendLogsToBackground({
       level: "success",
       log: "Debug mode is enabled",
       hostname,
     });
     return true;
-  } else if (message.type === "AI_FILL_FIELDS") {
-    try {
-      if (inputData?.length > 0 && inputDataWithElement?.length > 0) {
-        getInput(message, sendResponse, loggingEnabled);
-      } else {
-        if (loggingEnabled) {
-          console.log(
-            "xxxxxxxxxxxxxxxx No input fields found xxxxxxxxxxxxxxxxx"
-          );
-        }
-        sendResponse({
-          status: "empty",
-          message: "No input fields found",
-        });
-        sendStatusToBackground({
-          level: "error",
-          log: "No input fields found",
-          hostname,
-        });
-      }
-    } catch (err) {
-      if (loggingEnabled) {
-        console.log(
-          "Error while filling fields: " +
-            (err instanceof Error ? err.message : JSON.stringify(err))
-        );
-      }
-      sendResponse({
-        status: "error",
-        message: err instanceof Error ? err.message : "Unknown error",
-      });
-      sendStatusToBackground({
-        level: "error",
-        log:
-          "Error while filling fields: " +
-          (err instanceof Error ? err.message : JSON.stringify(err)),
-        hostname,
-      });
-    }
-    return true;
   } else if (message.type === "FILL_FIELDS") {
     try {
       if (inputData?.length > 0 && inputDataWithElement?.length > 0) {
-        discoveredFields.forEach(({ role, input }) => {
-          let val = "";
-          if (role === "username") val = message.data.username || "";
-          else if (role === "email") val = message.data.email || "";
-          else if (role === "password") val = message.data.password || "";
-          if (val) {
-            (input as HTMLInputElement).value = val;
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            (input as HTMLElement).style.outline = "3px solid orange";
+        let missingRoles: string[] = [];
+
+        discoveredFields.forEach((item) => {
+          if (!Object.keys(message?.data || {}).includes(item?.role)) {
+            missingRoles.push(item?.role);
           }
         });
-        if (loggingEnabled) {
-          console.log("Fields Filled Successfully");
+
+        if (missingRoles.length > 0) {
+          if (loggingEnabled) {
+            console.log(
+              "Discovered field and credential mismatch detected. Verifying with AI model. Missing roles:",
+              missingRoles
+            );
+          }
+
+          sendStatusToBackground({
+            type: "error",
+            message: `Discovered field and credential mismatch detected. Missing roles: ${missingRoles.join(
+              ", "
+            )}`,
+            hostname,
+          });
+
+          sendLogsToBackground({
+            level: "info",
+            log: `Discovered field and credential mismatch detected. Missing roles: ${missingRoles.join(
+              ", "
+            )}`,
+            hostname,
+          });
+
+          getInput(message, sendResponse, loggingEnabled);
+        } else {
+          discoveredFields.forEach(({ role, input }) => {
+            let val = "";
+            if (role === "username") val = message.data.username || "";
+            else if (role === "email") val = message.data.email || "";
+            else if (role === "password") val = message.data.password || "";
+            else if (role === "phone") val = message.data.phone || "";
+            else if (role === "address") val = message.data.address || "";
+            if (val) {
+              (input as HTMLInputElement).value = val;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+              (input as HTMLElement).style.outline = "3px solid orange";
+            }
+          });
+          if (loggingEnabled) {
+            console.log("Fields Filled Successfully");
+          }
+
+          sendStatusToBackground({
+            type: "success",
+            message: "Fields Filled Successfully",
+            hostname,
+          });
+          sendResponse({
+            status: "success",
+            message: "Fields Filled Successfully",
+          });
+          sendLogsToBackground({
+            level: "success",
+            log: "Fields Filled Successfully",
+            hostname,
+          });
         }
-        sendResponse({
-          status: "success",
-          message: "Fields Filled Successfully",
-        });
-        sendStatusToBackground({
-          level: "success",
-          log: "Fields Filled Successfully",
-          hostname,
-        });
       } else {
         if (loggingEnabled) {
           console.log(
             "xxxxxxxxxxxxxxxx No input fields found xxxxxxxxxxxxxxxxx"
           );
         }
+
+        sendStatusToBackground({
+          type: "error",
+          message: "No input fields found",
+          hostname,
+        });
         sendResponse({
-          status: "empty",
+          status: "stop",
           message: "No input fields found",
         });
-        sendStatusToBackground({
+        sendLogsToBackground({
           level: "error",
           log: "No input fields found",
           hostname,
@@ -657,7 +735,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         status: "error",
         message: err instanceof Error ? err.message : "Unknown error",
       });
-      sendStatusToBackground({
+      sendLogsToBackground({
         level: "error",
         log:
           "Error while filling fields: " +
