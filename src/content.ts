@@ -197,15 +197,19 @@ function collectCandidates(): (HTMLInputElement | HTMLTextAreaElement)[] {
 
   const results = new Set<HTMLInputElement | HTMLTextAreaElement>();
 
-  // Helper to safely add if element matches expected input or textarea
   function tryAddElement(el: Element) {
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      results.add(el);
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") {
+      results.add(el as HTMLInputElement);
+    } else if (tag === "textarea") {
+      results.add(el as HTMLTextAreaElement);
     }
   }
 
+  // ✅ Only process the main document (not frames)
   document.querySelectorAll(selectors).forEach((el) => tryAddElement(el));
 
+  // ✅ Handle shadow roots in main document
   for (const el of walkTree(document)) {
     const host = el as HTMLElement;
     if (host.shadowRoot) {
@@ -214,6 +218,56 @@ function collectCandidates(): (HTMLInputElement | HTMLTextAreaElement)[] {
         .forEach((node) => tryAddElement(node));
     }
   }
+
+  return Array.from(results);
+}
+
+function collectCandidatesIFrame(): (HTMLInputElement | HTMLTextAreaElement)[] {
+  const selectors = [
+    "input:not([type])",
+    'input[type="text" i]',
+    'input[type="search" i]',
+    'input[type="email" i]',
+    'input[type="password" i]',
+    'input[type="tel" i]',
+    'input[type="url" i]',
+    'input[type="number" i]',
+    "textarea",
+  ].join(",");
+
+  const results = new Set<HTMLInputElement | HTMLTextAreaElement>();
+
+  function tryAddElement(el: Element) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") {
+      results.add(el as HTMLInputElement);
+    } else if (tag === "textarea") {
+      results.add(el as HTMLTextAreaElement);
+    }
+  }
+
+  function findInputsInFrames(win: Window): Element[] {
+    const collected: Element[] = [];
+
+    for (let i = 0; i < win.frames.length; i++) {
+      const frameWin = win.frames[i];
+      try {
+        const doc = frameWin.document;
+        const inputs = doc.querySelectorAll(selectors);
+        collected.push(...Array.from(inputs));
+
+        // ✅ Recursive: dive into nested frames
+        collected.push(...findInputsInFrames(frameWin));
+      } catch (err) {
+        console.warn("Unable to access frame:", err);
+      }
+    }
+
+    return collected;
+  }
+
+  const frameInputs = findInputsInFrames(window);
+  frameInputs.forEach((el) => tryAddElement(el));
 
   return Array.from(results);
 }
@@ -356,7 +410,10 @@ function discoverAndFillInputs(initial: boolean = false) {
   }
   try {
     discoveredFields.length = 0;
-    const candidates = collectCandidates().filter(isVisibleDeep);
+    const candidates = [
+      ...collectCandidates().filter(isVisibleDeep),
+      ...collectCandidatesIFrame(),
+    ];
 
     inputData.length = 0;
     inputDataWithElement.length = 0;

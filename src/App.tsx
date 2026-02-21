@@ -66,6 +66,27 @@ function App() {
       username: "janedoe-django",
       password: "demo54321",
     },
+    {
+      site: "netbanking.hdfcbank.com",
+      username: "janedoe-hdfc",
+      password: "demo12342354",
+    },
+    {
+      site: "orcid.org",
+      email: "janedoe-orcid@test.com",
+      password: "demode",
+    },
+    {
+      site: "auth.openai.com",
+      email: "janedoe-chatgpt@test.com",
+      password: "demoChatgpt",
+    },
+    {
+      site: "login.salesforce.com",
+      email: "janedoe-salesforce@test.com",
+      username: "janedoe-salesforce",
+      password: "demoSalesforce",
+    },
   ];
 
   // useEffect(() => {
