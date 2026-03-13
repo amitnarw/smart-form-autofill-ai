@@ -1,0 +1,19 @@
+{
+  "name": "Jane Doe",
+  "email": "janedoe@example.com",
+  "phone": "+1 555 234 7788",
+  "address": "221B Baker Street",
+  "dob": "1994-06-15",
+  "additionalFields": {
+    "firstname": "Jane",
+    "lastname": "Doe",
+    "gender": "male",
+    "city": "San Francisco",
+    "state": "CA",
+    "country": "United States",
+    "company": "Example Inc",
+    "username": "janedoe",
+    "zip": "94107",
+    "address": "221B Baker Street"
+  }
+}

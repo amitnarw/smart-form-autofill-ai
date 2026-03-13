@@ -1,0 +1,36 @@
+button {
+    cursor: pointer;
+}
+
+/* Personal tab layout fixes */
+.personal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.personal-grid input {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.add-personal-btn {
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 384px) {
+  .personal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Ensure container handles overflow */
+.personal-info-container {
+  max-height: 320px;
+  overflow-y: auto;
+}
