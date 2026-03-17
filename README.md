@@ -1,4 +1,4 @@
-# AI-Powered Chrome Extension for Smart Form Autofill
+# AI Powered AutoFill Extension
 
 A modern, AI-powered Chrome extension built with React + TypeScript + Vite that simplifies form filling by automatically detecting and populating login and registration fields using stored credentials.
 

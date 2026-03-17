@@ -1609,7 +1609,8 @@ export const autofillRegistrationForm = (
                 });
                 const success = selectOption(select, value);
                 if (success) {
-                    (select as HTMLElement).style.outline = '3px solid orange';
+                    (select as HTMLElement).style.outline = '2px solid #3b82f6';
+                    (select as HTMLElement).style.borderColor = '#3b82f6';
                     filled.push(role);
                     console.log('[Autofill] ✅ Successfully filled select:', {
                         role,
@@ -1801,7 +1802,8 @@ export const autofillRegistrationForm = (
 
                     item.input.dispatchEvent(new Event('input', { bubbles: true }));
                     item.input.dispatchEvent(new Event('change', { bubbles: true }));
-                    (item.input as HTMLElement).style.outline = '3px solid orange';
+                    (item.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                    (item.input as HTMLElement).style.borderColor = '#3b82f6';
 
                     filled.push(role);
 
@@ -2128,7 +2130,8 @@ export const autoFillRegistrationFormWithAI = async (
                     (item.input as HTMLInputElement).value = value;
                     item.input.dispatchEvent(new Event('input', { bubbles: true }));
                     item.input.dispatchEvent(new Event('change', { bubbles: true }));
-                    (item.input as HTMLElement).style.outline = '3px solid orange';
+                    (item.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                    (item.input as HTMLElement).style.borderColor = '#3b82f6';
                     filled.push(role);
 
                     sendLogtoBack({
@@ -2835,6 +2838,7 @@ const clearAllFieldValues = (fields: { input: HTMLElement }[]) => {
 
         // DO NOT touch custom dropdown DOM
         (input as HTMLElement).style.outline = '';
+        (input as HTMLElement).style.borderColor = '';
     });
 };
 
@@ -2985,11 +2989,13 @@ export const autoFillRegistrationFormWithAI2 = async (
                                             inputElement.dispatchEvent(new Event('input', { bubbles: true }));
                                             inputElement.dispatchEvent(new Event('change', { bubbles: true }));
                                         }, 1000);
-                                        (field.input as HTMLElement).style.outline = '3px solid orange';
+                                        (field.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                                        (field.input as HTMLElement).style.borderColor = '#3b82f6';
                                     } else if (field.input instanceof HTMLSelectElement) {
                                         const success = selectOption(field.input, dobValue);
                                         if (success) {
-                                            (field.input as HTMLElement).style.outline = '3px solid orange';
+                                            (field.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                                            (field.input as HTMLElement).style.borderColor = '#3b82f6';
                                         }
                                     }
                                     // Push the specific DOB field type (dob-year, dob-month, or dob-day)
@@ -3092,13 +3098,15 @@ export const autoFillRegistrationFormWithAI2 = async (
                         }
 
                         // Mark as filled
-                        (field.input as HTMLElement).style.outline = '3px solid orange';
+                        (field.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                        (field.input as HTMLElement).style.borderColor = '#3b82f6';
                         filled.push(key);
                     } else if (field.input instanceof HTMLSelectElement) {
                         // Standard select element
                         const success = selectOption(field.input, value);
                         if (success) {
-                            (field.input as HTMLElement).style.outline = '3px solid orange';
+                            (field.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                            (field.input as HTMLElement).style.borderColor = '#3b82f6';
                             filled.push(key);
                         }
                     } else if (
@@ -3114,7 +3122,8 @@ export const autoFillRegistrationFormWithAI2 = async (
                         console.log("Custom dropdown element found:", field.input);
                         console.log("Would fill with value:", value);
                         // Mark as filled even though we can't fill it yet
-                        (field.input as HTMLElement).style.outline = '3px solid orange';
+                        (field.input as HTMLElement).style.outline = '2px solid #3b82f6';
+                        (field.input as HTMLElement).style.borderColor = '#3b82f6';
                         filled.push(key);
                     }
                 }

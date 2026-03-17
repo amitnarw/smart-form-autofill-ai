@@ -1,11 +1,12 @@
 {
-  "name": "new-folder",
+  "name": "ai-powered-autofill-extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && vite build --config vite.background.config.ts && vite build --config vite.content.config.ts",
+    "watch": "vite",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -13,8 +14,6 @@
     "@ai-sdk/openai": "^2.0.22",
     "@heroicons/react": "^2.2.0",
     "@tailwindcss/vite": "^4.1.12",
-    "@types/chrome": "^0.1.4",
-    "@types/node": "^24.3.0",
     "ai": "^5.0.27",
     "crypto-js": "^4.2.0",
     "react": "^19.1.1",
@@ -22,8 +21,11 @@
     "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
+    "@crxjs/vite-plugin": "2.0.0-beta.33",
     "@eslint/js": "^9.33.0",
+    "@types/chrome": "^0.1.4",
     "@types/crypto-js": "^4.2.2",
+    "@types/node": "^24.3.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",
